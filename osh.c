@@ -215,6 +215,10 @@ char *locateOutputOverwrite(char **list) {
 }
 
 // Execute the parsed input
+// Returns
+//  2 - EXIT
+//  1 - input NULL
+//  0 - Success
 int runExec(char **argv[]) {
     int wstatus;
     int i = 0;
@@ -264,6 +268,9 @@ int runExec(char **argv[]) {
                 // Print output to next pipe
                 out = pipefd[i%2][1];
             }
+            if (strcmp(argv[i][0], "exit") == 0) {
+                return 2;
+            }
             // Execute command
             spawn_proc(in, out, argv[i]);
             // Close pipes and files that have been written to
@@ -301,30 +308,36 @@ int runExec(char **argv[]) {
 }
 
 // Shell life cycle
-void shellLoop() {
+// Returns
+//  2 - EXIT
+//  1 - Error
+//  0 - Success
+int shellLoop() {
     // Get input from user
     char *input = getInput();
     if (input == NULL) {
-        return;
+        return 1;
     }
     
     // Parsed read input
     char **argv = parseInput(input);
     if (argv == NULL) {
-        return;
+        return 1;
     }
     free(input);
 
     char ***pipes = parsePipes(argv);
     if (pipes == NULL) {
-        return;
+        return 1;
     }
 
     // Invert pipes (Specific to OddShell)
     invertArr(pipes);
 
     // Execute the commands
-    runExec(pipes);
+    if (runExec(pipes) == 2) {
+        return 2;
+    }
 
     for (int i = 0; pipes[i] != NULL; i++) {
         for (int j = 0; pipes[i][j] != NULL; j++) {
@@ -333,13 +346,17 @@ void shellLoop() {
         free(pipes[i]);
     }
     free(pipes);
+
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
 
     // Run shell forever
     while (1) {
-        shellLoop();
+        if (shellLoop() == 2) {
+            return EXIT_SUCCESS;
+        }
     }
 
     return EXIT_SUCCESS;
