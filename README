@@ -1,0 +1,21 @@
+Implementation of a simple shell.
+
+Characteristics:
+    Supports pipes and STDOUT overwrite redirection.
+    However, implements the above reading right to left.
+    e.g
+            osh$ out.txt < grep word | cat file.txt
+        equivalent to
+            bash$ cat file.txt | grep word > out.txt
+    Particular liking for characters 'c', 'm', 'p' and 't' and duplicates these
+    characters when they appear in the STDOUT output to the user.
+    e.g.
+        osh$ echo computer
+        ccommpptter
+
+Note to students:
+    This work was completed in the context of a university course. Implementing
+    a memory allocator is a common assignment task for introductory operating
+    systems courses.
+    If you are a student please DO NOT COPY from this resource.
+    Professors are just as aware of the existence of GitHub as you are.
