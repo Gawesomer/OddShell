@@ -181,13 +181,14 @@ int spawn_proc(int in, int out, char *argv[]) {
         }
         if (execvp(argv[0], argv) == -1) {
             perror("execvp");
+            printf(-1); // Hacky and generates warnings. To fix.
             return -1;
         }
     }
     return 0;
 }
 
-// Print to STDOUT form fd
+// Print to STDOUT from fd
 // Duplicate characters 'c', 'm', 'p' and 't'
 void printSTDOUT(int fd) {
     char buf;
