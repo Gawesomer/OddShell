@@ -7,53 +7,22 @@
 #include <string.h>
 #include <linux/limits.h>
 #include <errno.h>
-//#include "list.h"
-
-// Returns full path name to executable with name matching command found in PATH
-// Returns NULL if command not found in PATH
-// Returned string should be freed
-char *locateExecutable(char *command) {
-    char *pathRef = getenv("PATH");
-    char *pathCopy = strdup(pathRef);
-    if (pathCopy == NULL) {
-        perror("strdup");
-        return NULL;
-    }
-    char *pathLocations = strtok(pathCopy, ":");
-    char *temp = malloc(sizeof(char)*PATH_MAX);
-    if (temp == NULL) {
-        perror("malloc");
-        return NULL;
-    }
-
-    while (pathLocations != NULL) {
-        sprintf(temp, "%s/%s", pathLocations, command);
-
-        if (access(temp, X_OK) == 0) {
-            free(pathCopy);
-            return temp;
-        }
-
-        pathLocations = strtok(NULL, ":");
-    }
-
-    free(pathCopy);
-    free(temp);
-    return NULL;
-}
 
 // Prints prompt 'osh'
 // Gets input from line and removes spaces character from the end of it.
 // Returned string should be freed
 char *getInput() {
-    size_t inputSize= ARG_MAX;
+    // Create char[] into which read data will be stored
+    size_t inputSize = ARG_MAX; // ARG_MAX: Max length of arguments for a process.
     char *input = malloc(sizeof(char)*inputSize);
     if (input == NULL) {
         perror("malloc");
     }
 
+    // Print prompt
     printf("osh>");
 
+    // Read input
     if (getline(&input, &inputSize, stdin) == -1) {
         perror("getline");
         free(input);
@@ -71,11 +40,14 @@ char **parseInput(char *input) {
         return NULL;
     }
 
+    // Leave input intact
     char *inputCopy = strdup(input);
     if (inputCopy == NULL) {
         perror("strdup");
         return NULL;
     }
+
+    // Split input by space characters
     char *words = strtok(inputCopy, " ");
     char **argv = NULL;
     int i = 0;
@@ -107,15 +79,22 @@ char ***parsePipes(char *argv[]) {
         return NULL;
     }
 
+    // NULL terminated array
+    // Initialize with two elements for the basic case where there is only one
+    // command:
+    //  pipes = [command][NULL]
     char ***pipes = malloc(2*sizeof(char**));       // char *pipes[][];
     pipes[0] = NULL;
     pipes[1] = NULL;
+
     int i = 0;
     int j = 0;
     int k = 0;
 
     for (i = 0;  argv[i] != NULL; i++) {
         if (strcmp(argv[i], "|") == 0) {
+            // Pipe character found
+            // Add new command to pipe array
             j++;
             pipes = realloc(pipes, (j+2)*sizeof(char**));
             if (pipes == NULL) {
@@ -125,6 +104,7 @@ char ***parsePipes(char *argv[]) {
             pipes[j] = NULL;
             k = 0;
         } else {
+            // Append word to current pipe
             pipes[j] = realloc(pipes[j], (k+2)*sizeof(char*));
             if (pipes[j] == NULL) {
                 perror("realloc");
@@ -141,15 +121,18 @@ char ***parsePipes(char *argv[]) {
 }
 
 // Inverts array of pipes
+// Specific to the OddShell
 void invertArr(char ***arr) {
     int ptr0 = 0;
     int ptr1 = 0;
     char **temp;
 
+    // Get ptr1 to end of array
     while (arr[ptr1+1] != NULL) {
         ptr1++;
     }
 
+    // Swap first half of array with second half
     while (ptr0 < ptr1) {
         temp = arr[ptr0];
         arr[ptr0] = arr[ptr1];
@@ -159,6 +142,8 @@ void invertArr(char ***arr) {
     }
 }
 
+// Fork a child and gets the child to execute argv, reading from in and writing
+// to out.
 // Return:
 // -3 = dup2 error
 // -2 = fork error
@@ -181,7 +166,9 @@ int spawn_proc(int in, int out, char *argv[]) {
         }
         if (execvp(argv[0], argv) == -1) {
             perror("execvp");
-            printf(-1); // Hacky and generates warnings. To fix.
+            // Used to send EOF so that next read() in printSTDOUT() does not
+            // block.
+            printf(-1); // Hacky and generates warnings. TO FIX.
             return -1;
         }
     }
@@ -212,7 +199,9 @@ char *locateOutputOverwrite(char **list) {
     }
 
     if (strcmp(list[1], "<") == 0) {
-        ans = list[0];
+        // Found output redirection symbol
+        ans = list[0];  // Filename to print to
+        // Shift array backwards by two
         list[0] = list[2];
         free(list[1]);
         list[1] = list[3];
@@ -221,23 +210,6 @@ char *locateOutputOverwrite(char **list) {
         }
         list[i] = NULL;
     }
-    /*
-    for (i = 0; list[i] != NULL; i++) {
-        if (strcmp(list[i], ">") == 0) {
-            ans = strdup(list[i+1]);
-            break;
-        }
-    }
-    if (ans != NULL) {
-        while (list[i+2] != NULL) {
-            free(list[i]);
-            list[i] = list[i+2];
-            i++;
-        }
-        free(list[i]);
-        list[i] = NULL;
-    }
-    */
 
     return ans;
 }
@@ -282,6 +254,7 @@ int runExec(char **argv[]) {
                         perror("fileno");
                         out = pipefd[i%2][1];
                     } else {
+                        // Writing to file not to pipe
                         if (close(pipefd[i%2][1]) == -1) {
                             perror("close");
                         }
@@ -293,6 +266,7 @@ int runExec(char **argv[]) {
             }
             // Execute command
             spawn_proc(in, out, argv[i]);
+            // Close pipes and files that have been written to
             if (i > 0) {
                 if (close(pipefd[(i-1)%2][0]) == -1) {
                     perror("close");
@@ -326,25 +300,19 @@ int runExec(char **argv[]) {
     return 0;
 }
 
-void printArr(char ***arr) {
-    for (int i = 0; arr[i] != NULL; i++) {
-        for (int j = 0; arr[i][j] != NULL; j++) {
-            printf("arr[%d][%d]: %s\n", i, j, arr[i][j]);
-        }
-    }
-}
-
+// Shell life cycle
 void shellLoop() {
+    // Get input from user
     char *input = getInput();
     if (input == NULL) {
         return;
     }
     
+    // Parsed read input
     char **argv = parseInput(input);
     if (argv == NULL) {
         return;
     }
-
     free(input);
 
     char ***pipes = parsePipes(argv);
@@ -352,8 +320,10 @@ void shellLoop() {
         return;
     }
 
+    // Invert pipes (Specific to OddShell)
     invertArr(pipes);
 
+    // Execute the commands
     runExec(pipes);
 
     for (int i = 0; pipes[i] != NULL; i++) {
@@ -367,6 +337,7 @@ void shellLoop() {
 
 int main(int argc, char *argv[]) {
 
+    // Run shell forever
     while (1) {
         shellLoop();
     }
