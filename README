@@ -1,6 +1,7 @@
 Implementation of a simple shell.
 
 Characteristics:
+    Supports exit
     Supports pipes and STDOUT overwrite redirection.
     However, implements the above reading right to left.
     e.g
